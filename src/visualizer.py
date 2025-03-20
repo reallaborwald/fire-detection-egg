@@ -1,8 +1,12 @@
 import folium
 import geopandas as gpd
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as PathEffects
 import numpy as np
-from math import radians, cos, sin, sqrt, atan2
+from math import radians, cos, sin, sqrt, atan2, degrees
+
+#SKYCODE = ["E", "ENE", "NE", "NNE", "N", "NNW", "NW", "WNW", "W", "WSW", "SW", "SSW", "S", "SSE", "SE", "ESE"]
+SKYCODE = ["W", "WSW", "SW", "SSW", "S", "SSE", "SE", "ESE", "E", "ENE", "NE", "NNE", "N", "NNW", "NW", "WNW"]
 
 def make_html_map(lat, lon):
     map = folium.Map(location=[lat, lon], zoom_start=12)
@@ -19,6 +23,9 @@ class ZoomPan:
         self.cid_release = ax.figure.canvas.mpl_connect('button_release_event', self.on_release)
         self.cid_motion = ax.figure.canvas.mpl_connect('motion_notify_event', self.on_motion)
         self.press_event = None
+        self.annotations = []
+        self.arrows = []
+        self.cid = ax.figure.canvas.mpl_connect('draw_event', self.on_draw)
         self.set_initial_zoom(zoom_center, initial_zoom)
 
     def set_initial_zoom(self, zoom_center, zoom_factor):
@@ -31,6 +38,14 @@ class ZoomPan:
         self.ax.set_xlim(new_xlim)
         self.ax.set_ylim(new_ylim)
         self.ax.figure.canvas.draw()
+        
+    def add_annotation(self, annotation):
+        """Adds an annotation to be managed."""
+        self.annotations.append(annotation)
+        
+    def add_arrow(self, arrow):
+        """Adds an arrow to be managed."""
+        self.arrows.append(arrow)
 
     def on_scroll(self, event):
         scale_factor = 1.2 if event.step > 0 else 0.8
@@ -64,6 +79,38 @@ class ZoomPan:
         self.ax.set_xlim([x + dx for x in xlim])
         self.ax.set_ylim([y + dy for y in ylim])
         self.ax.figure.canvas.draw()
+        
+    def on_draw(self, event):
+        """Toggle visibility of annotations based on zoom level and pan."""
+        xlim, ylim = self.ax.get_xlim(), self.ax.get_ylim()
+        #for ann in self.annotations:
+        #    x, y = ann.xy
+        #    #ann.set_visible(xlim[0] <= x <= xlim[1] and ylim[0] <= y <= ylim[1])
+        #    color = 'red' if (xlim[0] <= x <= xlim[1] and ylim[0] <= y <= ylim[1]) else 'orange'
+        #    ann.arrow_patch.set_color(color)
+        for arrow, target, origin in self.arrows:
+            x, y = target
+            x0, y0 = origin
+            color = 'red' if (xlim[0] <= x <= xlim[1] and ylim[0] <= y <= ylim[1]) else 'orange'
+            arrow.arrow_patch.set_color(color)
+            '''if ylim[0] <= y <= ylim[1]:
+                if xlim[0] > x:
+                    x_clip = xlim[0]
+                    dy = sqrt(np.power(x-x0, 2)/(np.linalg.norm(np.array((x,y))-np.array((x0, y0)))/(y - y0) - 1))
+                    y_clip = y0+dy
+                elif xlim[1] < x:
+                    x_clip = xlim[1]
+                    y_clip = ...
+                else:
+                    x_clip = x
+                y_clip = y
+            else:            
+                y_clip = ylim[1]
+                
+            arrow.xy = (x_clip, y_clip)
+            '''
+            #arrow.arrow_patch.set_shrinkA(0.8)
+        self.ax.figure.canvas.draw_idle()
 
 # load shapefile maps (and store them pre-loaded)
 
@@ -92,38 +139,53 @@ def make_map(own_pos, fire_pos = []):
     plt.scatter([lon], [lat], color="blue", label="Aktueller Standort", zorder = 4)
     
     for (latf, lonf) in fire_pos:
-        plt.scatter([lonf], [latf], color="red", label="Feuer", marker = "X", zorder = 6)
+        
         
         # TODO: Pfeil zeige auf Displaypunkt , wenn Datenpunkt nicht im Bild
         dist = round(coord_2_km(lat, lon, latf, lonf), 2)
+        if dist > 10.0:
+            continue
+        if dist < 0.1:
+            skydir = direction((lon, lat), (lonf, latf))
+            txt = ax.text(lon, lat, f"CAUTION!\nFIRE DIRECTLY \n{skydir} FROM YOU", weight = "heavy", size = "x-large", zorder = 9, color = "darkred")
+            txt.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
+            continue
+        
+        plt.scatter([lonf], [latf], color="red", label="Feuer", marker = "X", zorder = 6)
         x = ax.get_xlim()
         y = ax.get_ylim()
-        if x[0] < lonf < x[1] and y[0] < latf < y[1] and x[0] < lon < x[1] and y[0] < lat < y[1]:
-            ax.annotate("", xytext=(lon, lat), xy=(lonf, latf), arrowprops=dict(arrowstyle='->', color='red', linewidth=3), annotation_clip = False)
+        
+        
+        ann = ax.annotate("", xytext=(lon, lat), xy=(lonf, latf), arrowprops=dict(color = 'blue', linewidth=3, shrink = 0.05, alpha = 0.8), annotation_clip = False)
+        skydir = direction((lon, lat), (lonf, latf))
+        ax.text((lonf-lon)/4 + lon, (latf-lat)/4 + lat, str(dist)+" km, " + skydir, weight = "heavy", size = "large", zorder = 8)
+        '''if x[0] < lonf < x[1] and y[0] < latf < y[1] and x[0] < lon < x[1] and y[0] < lat < y[1]:
+            ann = ax.annotate("", xytext=(lon, lat), xy=(lonf, latf), arrowprops=dict(color = 'red', linewidth=3, shrink = 0.1), annotation_clip = False)
             #ax.annotate(str(dist) + " km",  xy=((lonf-lon)/2 + lon, (latf-lat)/2 + lat), )
             ax.text((lonf-lon)/2 + lon, (latf-lat)/2 + lat, str(dist)+" km", weight = "heavy", size = "large", zorder = 8)
         else:
-            ax.annotate("", xytext=(lon, lat), xy=(lonf, latf), arrowprops=dict(arrowstyle='->', color='orange', linewidth=3), annotation_clip = False)
+            ann = ax.annotate("", xytext=(lon, lat), xy=(lonf, latf), arrowprops=dict(color = 'orange', linewidth=3, shrink = 0.1), annotation_clip = False)
             ax.text((lonf-lon)/2 + lon, (latf-lat)/2 + lat, str(dist)+" km", weight = "heavy", size = "large", zorder = 8)
         #plot_arrow(ax, (lat, lon), (latf, lonf))
+        '''
         
+        #zoom_pan.add_annotation(ann)
+        zoom_pan.add_arrow((ann, (lonf, latf), (lon, lat)))
     
     plt.legend()
     
     plt.show()
-
+    
 def plot_arrow(ax, A, B, display_point=None):
     """
     Draws an arrow from point A to point B if B is within the data limits.
     If B is outside, an arrow points towards B up to the display_point using ax.annotate().
     """
     xlim, ylim = ax.get_xlim(), ax.get_ylim()
-    if xlim[0] <= B[0] <= xlim[1] and ylim[0] <= B[1] <= ylim[1]:
-        ax.annotate(str(round(coord_2_km(A[1], A[0], B[1], B[0]), 2)) + " km", xy=B, xytext=A, arrowprops=dict(arrowstyle="->", color='red', lw=1.5))
-    else:
-        if display_point is None:
-            display_point = ((A[0] + B[0]) / 2, (A[1] + B[1]) / 2)
-        ax.annotate(str(round(coord_2_km(A[1], A[0], B[1], B[0]), 2)) + " km", xy=display_point, xytext=A, arrowprops=dict(arrowstyle="->", color='blue', lw=1.5))
+    color = 'red' if (xlim[0] <= B[0] <= xlim[1] and ylim[0] <= B[1] <= ylim[1]) else 'blue'
+    target = B if color == 'red' else display_point if display_point else ((A[0] + B[0]) / 2, (A[1] + B[1]) / 2)
+    arrow = ax.annotate("", xy=target, xytext=A, arrowprops=dict(arrowstyle="->", color=color, lw=1.5))
+    return arrow
 
 # GPGGA to lat long
 def parse_gpgga(sentence):
@@ -174,6 +236,27 @@ def coord_2_km(lat1, lon1, lat2, lon2):
     c = 2 * atan2(sqrt(a), sqrt(1 - a))
     
     return R * c 
+
+# Himmelsrichtung
+
+def direction(origin, target):
+    alpha = calculate_angle(origin[0], origin[1], target[0], target[1])
+    #for i, j in enumerate(np.arange(11.25, 360, 22.5)):
+    for i, j in enumerate(np.arange(-168.75, 180, 22.5)):
+        if alpha < j:
+            return SKYCODE[i]
+    
+
+
+def calculate_angle(x1, y1, x2, y2):
+    """
+    Calculates the angle (in degrees) between two points relative to the positive x-axis.
+    """
+    delta_x = x2 - x1
+    delta_y = y2 - y1
+    angle_rad = atan2(delta_y, delta_x)  # atan2 handles correct quadrant
+    angle_deg = degrees(angle_rad)  # Convert radians to degrees
+    return angle_deg
 
 # find own position
 
