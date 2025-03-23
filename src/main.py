@@ -13,7 +13,7 @@ SEED = 300
 
 if __name__ == '__main__':
     
-    version = 1
+    version = 0
     
     if version == 0:
         
