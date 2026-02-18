@@ -4,7 +4,7 @@ The common wireless infrastructure requires cell towers which pose impractical o
 
 Therefore, a device for navigation as the receiving counterpart to the Fire Detection Egg is proposed in this work.
 
-by **Rebecca Pampu, 22.07.2025**
+by **Rebecca Pampu, 22.07.2025** 
 
 ## Documentation 
 
