@@ -16,7 +16,7 @@ Video of simulation in action: [here](docs/videos/Screen_Recording.mp4)
 
 ## Hardware 
 
-![presentation slide showing example receiver](hardware/receiver_technical-hardware.pdf)
+![presentation slide showing example receiver](hardware/receiver_technical-hardware.png)
 
 Not yet implemented, but a plan on how a receiver device might be realised can be found:  
 (German): [here](hardware/Receiver_Device_de.pdf)  
